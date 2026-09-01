@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Autor: Dardo Esteban Nava <itdardonava@gmail.com>
+# Autor: Dardo Nava (@Dardo-sys)
 # rag_web.py
 # ============================================================================
 # Interfaz web "todo en uno" para el RAG local.

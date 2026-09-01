@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Autor: Dardo Esteban Nava <itdardonava@gmail.com>
+# Autor: Dardo Nava (@Dardo-sys)
 # rag_query.py
 # ============================================================================
 # Consulta Q&A sobre el índice RAG construido por rag_index.py.

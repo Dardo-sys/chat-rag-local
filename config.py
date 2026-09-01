@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Autor: Dardo Esteban Nava <itdardonava@gmail.com>
+# Autor: Dardo Nava (@Dardo-sys)
 # config.py
 # ============================================================================
 # Configuracion central del experimento de compresion semantica de prompts.

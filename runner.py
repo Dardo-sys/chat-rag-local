@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Autor: Dardo Esteban Nava <itdardonava@gmail.com>
+# Autor: Dardo Nava (@Dardo-sys)
 # runner.py
 # ============================================================================
 # Ejecuta el pipeline de experimentacion contra un LLM real (via Ollama).

@@ -109,4 +109,4 @@ python rag_web.py
 
 ---
 
-Autor: Dardo Esteban Nava · itdardonava@gmail.com
+Autor: Dardo Nava ([@Dardo-sys](https://github.com/Dardo-sys))

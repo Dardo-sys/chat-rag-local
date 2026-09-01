@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Autor: Dardo Esteban Nava <itdardonava@gmail.com>
+# Autor: Dardo Nava (@Dardo-sys)
 # rag_ranking.py
 # ============================================================================
 # Ranking de recuperación + prompt de Q&A con análisis del RAG.

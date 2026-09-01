@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Autor: Dardo Esteban Nava <itdardonava@gmail.com>
+# Autor: Dardo Nava (@Dardo-sys)
 # rag_index.py
 # ============================================================================
 # Construye un índice RAG (embeddings) sobre los archivos textuales de un

@@ -45,4 +45,4 @@ python rag_index.py --folder "C:\otra\carpeta"
 ```
 
 ---
-Autor: Dardo Esteban Nava · itdardonava@gmail.com
+Autor: Dardo Nava ([@Dardo-sys](https://github.com/Dardo-sys))
