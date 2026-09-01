@@ -406,10 +406,18 @@ async function ask(){
     (data.sources||[]).forEach(s=>{
       const d=document.createElement('div'); d.className='src';
       const link=document.createElement('a');
-      const p=s.abs.split('\\\\').join('/');
-      link.href='file:///'+encodeURI(p);
-      link.target='_blank'; link.rel='noopener'; link.className='ruta';
-      link.textContent=s.ruta; link.title='Abrir en su carpeta';
+      link.href='javascript:void(0)';
+      link.className='ruta';
+      link.textContent=s.ruta; link.title='Abrir en su carpeta (Windows Explorer)';
+      link.onclick=async function(ev){
+        ev.preventDefault();
+        busy(true);
+        try{
+          const r=await jpost('/api/open',{ruta:s.abs});
+          if(r.error){ addMsg('bot','[error] '+r.error); }
+        }catch(e){ addMsg('bot','[error al abrir] '+e); }
+        finally{ busy(false); }
+      };
       const metaDiv=document.createElement('div'); metaDiv.className='meta';
       metaDiv.textContent=`coseno ${s.coseno} · ajuste ${s.ajuste}`;
       const txt=document.createElement('div'); txt.className='txt';
@@ -634,6 +642,29 @@ class Handler(BaseHTTPRequestHandler):
                     self._reply(_json(400, {"error": "k invalido"}))
                     return
                 self._reply(_json(200, {"ok": True, "k": K}))
+            elif path == "/api/open":
+                ruta = (payload.get("ruta") or "").strip()
+                if not ruta:
+                    self._reply(_json(400, {"error": "ruta vacia"}))
+                    return
+                a = get_active()
+                base = a["archivo_base"] if a else ""
+                if base:
+                    base_abs = os.path.normcase(os.path.abspath(base))
+                    ruta_abs = os.path.normcase(os.path.abspath(ruta))
+                    if not (ruta_abs.startswith(base_abs + os.sep) or ruta_abs == base_abs):
+                        self._reply(_json(403, {"error": "ruta fuera del indice activo"}))
+                        return
+                if not os.path.exists(ruta):
+                    self._reply(_json(400, {"error": "archivo no existe"}))
+                    return
+                try:
+                    import subprocess
+                    subprocess.Popen(["explorer", "/select,", os.path.abspath(ruta)])
+                except Exception as e:
+                    self._reply(_json(500, {"error": str(e)}))
+                    return
+                self._reply(_json(200, {"ok": True}))
             else:
                 self._reply(_json(404, {"error": "not found"}))
         except Exception as e:
