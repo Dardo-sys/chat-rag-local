@@ -79,15 +79,6 @@ En la interfaz puedes:
 EXP_MODEL=gemma2:2b python rag_query.py --index <proyecto> "tu pregunta"
 ```
 
-## Ejemplo incluido
-
-La carpeta `ejemplo/` contiene un proyecto de demostracion. Para probarlo:
-
-```
-python rag_index.py --folder ejemplo
-python rag_web.py
-```
-
 ## Backup / restauracion
 
 - `hacer_backup.bat` — copia el proyecto a `backups/exp_FECHA`.
