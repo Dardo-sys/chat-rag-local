@@ -3,6 +3,10 @@
 Aplicación local para hacer preguntas y obtener respuestas sobre cualquier
 carpeta de tu PC, citando las fuentes de donde se extrae cada respuesta.
 
+<p align="center">
+  <img src="screenshot.png" alt="Interfaz de Chat RAG" width="100%">
+</p>
+
 100% local: usa un modelo de embeddings y un LLM (via Ollama) corriendo en tu
 máquina. No se sube ningún dato a internet.
 
