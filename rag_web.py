@@ -67,7 +67,11 @@ def _get_encoder():
         with _ENC_LOCK:
             if _ENC is None:
                 from sentence_transformers import SentenceTransformer
-                _ENC = SentenceTransformer(EMB_MODEL_NAME, local_files_only=True)
+                try:
+                    _ENC = SentenceTransformer(EMB_MODEL_NAME, local_files_only=True)
+                except Exception:
+                    # Si no esta en cache local (primer inicio), descarga de HF
+                    _ENC = SentenceTransformer(EMB_MODEL_NAME, local_files_only=False)
     return _ENC
 
 

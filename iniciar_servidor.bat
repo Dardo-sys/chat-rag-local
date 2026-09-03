@@ -5,10 +5,12 @@ title RAG web - Iniciar servidor
 
 rem ============================================================
 rem  Inicia el RAG web sin complicaciones:
-rem   - Arranca Ollama con el almacen de modelos correcto
-rem     (F:\ollama_models si existe) y lo reinicia solo si el
-rem     Ollama que esta corriendo no ve los modelos.
-rem   - Levanta el servidor y abre el navegador solo.
+rem   - Verifica dependencias de Python (numpy, sentence-transformers)
+rem     y las instala automaticamente si faltan.
+rem   - Arranca Ollama si no esta corriendo.
+rem   - Verifica si el modelo (gemma2:2b) esta descargado, y si falta
+rem     lo descarga automaticamente.
+rem   - Levanta el servidor RAG web y abre el navegador solo.
 rem  Cierra esta ventana (o Ctrl+C) para detener.
 rem ============================================================
 
@@ -21,9 +23,42 @@ where python >nul 2>&1
 if errorlevel 1 set "PY=py"
 %PY% --version >nul 2>&1
 if errorlevel 1 (
-   echo [ERROR] No se encontro Python.
+   echo ============================================================
+   echo [ERROR] No se encontro Python instalado.
+   echo ============================================================
+   echo Por favor instala Python 3.10 o superior desde https://www.python.org
+   echo IMPORTANTE: marca la casilla "Add Python to PATH" durante la instalacion.
+   echo.
    pause
    exit /b 1
+)
+
+rem --- verificar e instalar dependencias de Python si faltan ---
+%PY% -c "import numpy, sentence_transformers" >nul 2>&1
+if errorlevel 1 (
+   echo ============================================================
+   echo   [CONFIGURACION INICIAL] Instalando librerias requeridas
+   echo ============================================================
+   echo Detectamos que faltan componentes de Python.
+   echo Instalando numpy y sentence-transformers via pip...
+   echo (Esto se hace una sola vez y puede demorar unos minutos).
+   echo.
+   if exist "%BASE%requirements.txt" (
+      %PY% -m pip install -r "%BASE%requirements.txt"
+   ) else (
+      %PY% -m pip install numpy sentence-transformers
+   )
+   if errorlevel 1 (
+      echo.
+      echo [ERROR] Hubo un problema instalando las librerias.
+      echo Intenta ejecutar manualmente en la consola:
+      echo   pip install numpy sentence-transformers
+      echo.
+      pause
+      exit /b 1
+   )
+   echo [OK] Librerias instaladas con exito.
+   echo.
 )
 
 rem --- buscar ollama (ruta completa) ---
@@ -31,12 +66,17 @@ set "OLLAMA="
 for /f "delims=" %%i in ('where ollama 2^>nul') do if not defined OLLAMA set "OLLAMA=%%i"
 if not defined OLLAMA if exist "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" set "OLLAMA=%LOCALAPPDATA%\Programs\Ollama\ollama.exe"
 if not defined OLLAMA (
-   echo [ERROR] No se encontro Ollama. Instalalo desde https://ollama.com
+   echo ============================================================
+   echo [ERROR] No se encontro Ollama instalado.
+   echo ============================================================
+   echo Descargalo e instalalo gratis desde https://ollama.com
+   echo Una vez instalado, vuelve a hacer doble clic en este archivo.
+   echo.
    pause
    exit /b 1
 )
 
-rem --- detectar el almacen de modelos (los del disco F) ---
+rem --- detectar almacen de modelos adicional (disco secundario si existe) ---
 set "OLLAMA_MODELS="
 if exist "F:\ollama_models" set "OLLAMA_MODELS=F:\ollama_models"
 if not defined OLLAMA_MODELS if exist "%USERPROFILE%\.ollama\models" set "OLLAMA_MODELS=%USERPROFILE%\.ollama\models"
@@ -51,11 +91,17 @@ if errorlevel 1 goto reiniciar
 :check_model
 curl -s --max-time 5 http://127.0.0.1:11434/api/tags | findstr /i /c:"%MODELO%" >nul 2>&1
 if not errorlevel 1 goto modelo_ok
-if %REINT% GEQ 2 goto modelo_duda
-echo [INFO] Ollama responde pero no ve %MODELO%: el almacen de modelos esta mal configurado.
-echo   Lo reinicio para que use %OLLAMA_MODELS%...
-if not defined OLLAMA_MODELS goto modelo_duda
-goto reiniciar
+
+rem Si Ollama esta corriendo pero no ve el modelo, quizas los modelos estan en F:
+if defined OLLAMA_MODELS if exist "%OLLAMA_MODELS%" (
+   if %REINT% LSS 2 (
+      echo [INFO] Ollama responde pero no ve %MODELO%: reconectando con %OLLAMA_MODELS%...
+      goto reiniciar
+   )
+)
+
+rem Si llego aca y no esta el modelo, lo descargamos automaticamente
+goto descargar_modelo
 
 :reiniciar
 set /a REINT+=1
@@ -74,9 +120,29 @@ if %N% GEQ 30 goto ollama_duda
 ping -n 2 127.0.0.1 >nul
 goto wait
 
+:descargar_modelo
+echo.
+echo ============================================================
+echo   [CONFIGURACION INICIAL] Descargando modelo de IA (%MODELO%)
+echo ============================================================
+echo El modelo '%MODELO%' no esta presente en tu instalacion de Ollama.
+echo Para que el chat pueda responder localmente, se descargara ahora
+echo (pesa ~1.6 GB y se descarga una unica vez).
+echo.
+echo Descargando %MODELO%...
+"%OLLAMA%" pull "%MODELO%"
+if errorlevel 1 (
+   echo.
+   echo [AVISO] Fallo la descarga automatica de %MODELO%.
+   echo   Puedes intentar descargarlo luego con: descargar_modelos.bat
+   goto modelo_duda
+)
+echo [OK] Modelo %MODELO% descargado y listo.
+goto modelo_ok
+
 :ollama_duda
 echo [AVISO] No se pudo confirmar que Ollama responda en 127.0.0.1:11434.
-echo   Abrelo manualmente; el chat no podra responder sin Ollama.
+echo   Abre Ollama manualmente; el chat no podra responder sin el servicio activo.
 goto arrancar
 
 :modelo_ok
@@ -90,8 +156,18 @@ echo   El chat recuperara las fuentes pero tal vez no genere respuesta.
 :arrancar
 cd /d "%BASE%"
 set "EXP_MODEL=%MODELO%"
-set "HF_HUB_OFFLINE=1"
-set "TRANSFORMERS_OFFLINE=1"
+
+rem --- Gestion inteligente de cache de embeddings ---
+set "EMB_CACHE=%USERPROFILE%\.cache\huggingface\hub\models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2"
+if exist "%EMB_CACHE%" (
+   set "HF_HUB_OFFLINE=1"
+   set "TRANSFORMERS_OFFLINE=1"
+) else (
+   echo.
+   echo [INFO] Primera ejecucion: se descargara el modelo de embeddings multilingue (~470 MB).
+   echo        Las siguientes veces iniciara 100%% offline de forma instantanea.
+   echo.
+)
 
 echo.
 echo Levantando el servidor RAG web...

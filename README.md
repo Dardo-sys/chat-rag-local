@@ -42,7 +42,20 @@ O bien, desde terminal: `ollama pull gemma2:2b`.
 > Cuanto menos RAM tengas, prefiere modelos de 1-2B. Personalizalo siempre
 > desde el selector de la interfaz web (`chat_web.bat`).
 
-## Uso rápido
+## Inicio Rápido (1 Clic) 🚀
+
+Simplemente haz doble clic en **`iniciar_servidor.bat`**.
+
+El script se encarga de todo automáticamente:
+1. Verifica que tengas Python e instala las dependencias (`numpy`, `sentence-transformers`) si faltan.
+2. Comprueba e inicia el servicio de **Ollama**.
+3. Descarga el modelo de lenguaje (`gemma2:2b`) si todavía no lo tienes.
+4. Descarga el modelo de embeddings multilingüe en su primer uso (y luego opera 100% offline).
+5. Abre la interfaz web en tu navegador lista para usar.
+
+---
+
+## Uso manual / paso a paso
 
 ### 1) Indexar una carpeta
 

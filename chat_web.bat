@@ -45,8 +45,11 @@ if not "%IDX%"=="" (
 
 cd /d "%BASE%"
 set "EXP_MODEL=%MODELO%"
-set "HF_HUB_OFFLINE=1"
-set "TRANSFORMERS_OFFLINE=1"
+set "EMB_CACHE=%USERPROFILE%\.cache\huggingface\hub\models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2"
+if exist "%EMB_CACHE%" (
+   set "HF_HUB_OFFLINE=1"
+   set "TRANSFORMERS_OFFLINE=1"
+)
 echo.
 echo Levantando el chat web (la primera vez carga los embeddings, puede tardar)...
 %PY% rag_web.py

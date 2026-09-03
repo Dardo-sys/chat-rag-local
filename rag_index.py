@@ -174,7 +174,11 @@ def main():
     INDEX_FILE = resolve_index_file()
     print(f"Indexando carpeta:\n  {BASE}\n")
     print("Cargando modelo de embeddings (multilingüe, local)...")
-    model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", local_files_only=True)
+    try:
+        model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", local_files_only=True)
+    except Exception:
+        print("[INFO] Modelo no encontrado en cache local; descargando por primera vez...")
+        model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", local_files_only=False)
     print("Modelo listo.\n")
 
     # recolectar archivos elegibles
