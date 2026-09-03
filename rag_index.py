@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # Autor: Dardo Nava (@Dardo-sys)
 # rag_index.py
 # ============================================================================
@@ -77,7 +77,26 @@ def list_indices():
     return out
 
 TEXT_EXTS = {".md", ".py", ".txt", ".json", ".csv", ".tex", ".js"}
-SKIP_DIRS = {".freebuff_sessions", ".opencode_sessions", ".glm_sessions", "__pycache__", ".git"}
+# Carpetas que se omiten siempre (sesiones de IA, git, y genéricas del sistema
+# que no aportan documentación textual y suelen ser gigantes/ruido).
+SKIP_DIRS = {
+    # sesiones / proyectos de IA y herramientas
+    ".freebuff_sessions", ".opencode_sessions", ".glm_sessions",
+    "__pycache__", ".git", ".hg", ".svn", "node_modules", "venv", ".venv",
+    "site-packages", ".cache", ".npm", ".cargo", ".rustup", ".conda",
+    # sistema Windows (apps del sistema, no documentación del usuario)
+    "Windows", "Program Files", "Program Files (x86)", "ProgramData",
+    "AppData", "System Volume Information", "$RECYCLE.BIN", "Recovery",
+    "Config.Msi", "MSOCache", "Intel", "PerfLogs",
+    # navegadores / telemetría / temp
+    "INetCache", "Cookies", "Temp", "tmp", "Logs", "$Windows.~BT", "$Windows.~WS",
+}
+# Defensa extra: rutas completas de sistema a ignorar aunque no estén en SKIP_DIRS.
+SYSTEM_DIRS = {
+    "c:\\windows", "c:\\program files", "c:\\program files (x86)",
+    "c:\\programdata", "c:\\users\\all users", "c:\\recovery",
+    "c:\\$recycle.bin", "c:\\system volume information",
+}
 MAX_FILE_MB = 1.0          # archivos mayores se consideran datasets/sesiones, se omiten
 CHUNK_CHARS = 2000         # tamaño del fragmento (subido para que el dato no quede fuera)
 OVERLAP = 200              # solapamiento entre fragmentos
@@ -85,8 +104,18 @@ OVERLAP = 200              # solapamiento entre fragmentos
 
 def iter_doc_files(root):
     """Recorre el árbol y produce rutas de archivos textuales elegibles."""
+    def prune(dirs, cur):
+        keep = []
+        for d in dirs:
+            if d in SKIP_DIRS or d.startswith("."):
+                continue
+            low = os.path.join(cur, d).replace("\\", "/").lower()
+            if low in SYSTEM_DIRS:
+                continue
+            keep.append(d)
+        dirs[:] = keep
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+        prune(dirnames, dirpath)
         for fn in filenames:
             ext = os.path.splitext(fn)[1].lower()
             if ext not in TEXT_EXTS:

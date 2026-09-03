@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Autor: Dardo Nava (@Dardo-sys)
 # rag_web.py
 # ============================================================================
 # Interfaz web "todo en uno" para el RAG local.
@@ -58,7 +57,7 @@ _ENC_LOCK = threading.Lock()
 _ACTIVE = None         # dict índice activo
 _ACTIVE_LOCK = threading.Lock()
 _INDEXING = {"active": False, "slug": None, "done": False,
-             "error": None, "log": []}   # estado de indexación
+             "error": None, "log": [], "started_at": None, "elapsed_s": 0}   # estado de indexación
 
 
 def _get_encoder():
@@ -115,14 +114,16 @@ def do_index(folder):
     El texto de progreso se imprime en la consola del servidor (para no
     interferir con isatty/progress-bars de bibliotecas)."""
     def work():
-        _INDEXING.update(active=True, done=False, error=None, log=[])
+        _INDEXING.update(active=True, done=False, error=None, log=[], started_at=time.time(), elapsed_s=0)
         try:
             _run_index_core(folder)
             _INDEXING["slug"] = RIX.slugify(os.path.basename(os.path.normpath(folder)))
             _INDEXING["done"] = True
+            _INDEXING["elapsed_s"] = round(time.time() - _INDEXING["started_at"], 1)
         except Exception as e:
             _INDEXING["error"] = str(e)
             _INDEXING["log"].append("ERROR: " + traceback.format_exc())
+            _INDEXING["elapsed_s"] = round(time.time() - (_INDEXING["started_at"] or time.time()), 1)
         finally:
             _INDEXING["active"] = False
 
@@ -268,6 +269,7 @@ HTML = """<!DOCTYPE html>
   <div class="row">
     <span class="lbl">Indexar carpeta</span>
     <input type="text" id="folder" placeholder="Pega la ruta de la carpeta, ej: C:\\Users\\tuUsuario\\Documentos\\mi-proyecto">
+    <button class="btn" id="btnPick">Elegir carpeta</button>
     <button class="btn" id="btnIndex">Indexar</button>
   </div>
   <div class="row">
@@ -292,7 +294,7 @@ HTML = """<!DOCTYPE html>
 
 <script>
 const chat=$('chat'), inp=$('inp'), send=$('send');
-const selIndex=$('selIndex'), btnRefresh=$('btnRefresh'), folder=$('folder'), btnIndex=$('btnIndex');
+const selIndex=$('selIndex'), btnRefresh=$('btnRefresh'), folder=$('folder'), btnIndex=$('btnIndex'), btnPick=$('btnPick');
 const selModel=$('selModel'), btnModel=$('btnModel');
 const kInput=$('kInput'), btnK=$('btnK');
 const stats=$('stats'), proyecto=$('proyecto');
@@ -414,8 +416,16 @@ async function ask(){
         busy(true);
         try{
           const r=await jpost('/api/open',{ruta:s.abs});
-          if(r.error){ addMsg('bot','[error] '+r.error); }
-        }catch(e){ addMsg('bot','[error al abrir] '+e); }
+          if(r.error){
+            addMsg('bot','[error] '+r.error);
+            stats.textContent='[error al abrir] '+r.error; stats.className='statline err';
+          }else{
+            stats.textContent='Abriendo en el Explorador...'; stats.className='statline ok';
+          }
+        }catch(e){
+          addMsg('bot','[error al abrir] '+e);
+          stats.textContent='[error al abrir] '+e; stats.className='statline err';
+        }
         finally{ busy(false); }
       };
       const metaDiv=document.createElement('div'); metaDiv.className='meta';
@@ -434,6 +444,16 @@ async function ask(){
   finally{ busy(false); inp.focus(); }
 }
 
+async function pickFolder(){
+  btnPick.disabled=true;
+  try{
+    const r=await jpost('/api/pick_folder',{});
+    if(r.error){ stats.textContent='Error: '+r.error; stats.className='statline err'; }
+    else if(r.folder){ folder.value=r.folder; stats.textContent='Carpeta elegida: '+r.folder; stats.className='statline ok'; }
+    else { stats.textContent='No elegiste ninguna carpeta.'; stats.className='statline'; }
+  }catch(e){ stats.textContent='[error al abrir el dialogo] '+e; stats.className='statline err'; }
+  finally{ btnPick.disabled=false; }
+}
 async function doIndex(){
   const f=folder.value.trim(); if(!f) return;
   stats.textContent='Indexando en segundo plano...'; stats.className='statline';
@@ -442,16 +462,17 @@ async function doIndex(){
   if(r.error){ stats.textContent='Error: '+r.error; stats.className='statline err'; btnIndex.disabled=false; return; }
   pollIndex(r.slug);
 }
+function fmtTiempo(s){ s=Math.max(0,Math.round(s||0)); const m=Math.floor(s/60); const ss=s%60; return (m>0?(m+'m '):'')+(ss<10?'0':'')+ss+'s'; }
 async function pollIndex(slug){
   const a=await jget('/api/status');
-  if(a.active){ stats.textContent='Indexando '+(a.slug||'')+'... '+(a.log&&a.log.length?a.log[a.log.length-1]:''); stats.className='statline'; setTimeout(()=>pollIndex(slug),900); return; }
-  if(a.error){ stats.textContent='Error al indexar: '+a.error; stats.className='statline err'; btnIndex.disabled=false; return; }
+  if(a.active){ stats.textContent='Indexando '+(a.slug||'')+'... [(transcurrido) '+fmtTiempo(a.elapsed_s)+'] '+(a.log&&a.log.length?a.log[a.log.length-1]:''); stats.className='statline'; setTimeout(()=>pollIndex(slug),900); return; }
+  if(a.error){ stats.textContent='Error al indexar ('+fmtTiempo(a.elapsed_s)+'): '+a.error; stats.className='statline err'; btnIndex.disabled=false; return; }
   // termino bien
-  stats.textContent='Indice "'+(a.slug||slug||'')+'" listo. Activandolo...'; stats.className='statline ok';
+  stats.textContent='Indice "'+(a.slug||slug||'')+'" listo en '+fmtTiempo(a.elapsed_s)+'. Activandolo...'; stats.className='statline ok';
   await refreshIndices(a.slug||slug);
   if(a.slug||slug) await cambiarIndice(a.slug||slug);
   btnIndex.disabled=false;
-  if(a.slug||slug) stats.textContent='Indice "'+(a.slug||slug)+'" listo y activo.'; 
+  if(a.slug||slug) stats.textContent='Indice "'+(a.slug||slug)+'" listo y activo (tardo '+fmtTiempo(a.elapsed_s)+').'; 
 }
 function busy(b){ send.disabled=b; inp.disabled=b; }
 function autosize(){ inp.style.height='auto'; inp.style.height=Math.min(inp.scrollHeight,140)+'px'; }
@@ -459,6 +480,7 @@ function autosize(){ inp.style.height='auto'; inp.style.height=Math.min(inp.scro
 selIndex.addEventListener('change',async()=>{ if(selIndex.value) await cambiarIndice(selIndex.value); });
 btnRefresh.addEventListener('click',()=>refreshIndices());
 btnIndex.addEventListener('click',doIndex);
+btnPick.addEventListener('click',pickFolder);
 selModel.addEventListener('change',applyModel);
 btnModel.addEventListener('click',applyModel);
 kInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyK(); } });
@@ -562,12 +584,17 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/indices":
                 self._reply(_json(200, RIX.list_indices()))
             elif path == "/api/status":
+                now = _INDEXING.get("started_at")
+                elapsed = _INDEXING.get("elapsed_s", 0)
+                if _INDEXING["active"] and now:
+                    elapsed = round(time.time() - now, 1)
                 self._reply(_json(200, {
                     "active": _INDEXING["active"],
                     "slug": _INDEXING["slug"],
                     "done": _INDEXING["done"],
                     "error": _INDEXING["error"],
                     "log": _INDEXING["log"][-40:],
+                    "elapsed_s": elapsed,
                 }))
             elif path == "/api/active":
                 a = get_active()
@@ -642,6 +669,12 @@ class Handler(BaseHTTPRequestHandler):
                     self._reply(_json(400, {"error": "k invalido"}))
                     return
                 self._reply(_json(200, {"ok": True, "k": K}))
+            elif path == "/api/pick_folder":
+                folder_sel = _pick_folder_dialog()
+                if not folder_sel:
+                    self._reply(_json(200, {"folder": None}))
+                else:
+                    self._reply(_json(200, {"folder": folder_sel}))
             elif path == "/api/open":
                 ruta = (payload.get("ruta") or "").strip()
                 if not ruta:
@@ -669,6 +702,26 @@ class Handler(BaseHTTPRequestHandler):
                 self._reply(_json(404, {"error": "not found"}))
         except Exception as e:
             self._reply(_json(500, {"error": str(e)}))
+
+
+def _pick_folder_dialog():
+    """Abre un dialogo nativo de Windows para elegir carpeta (via tkinter, que
+    funciona de forma fiable en primer plano). Devuelve la ruta elegida, o None
+    si se cancelo."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        ruta = filedialog.askdirectory(
+            parent=root,
+            title="Elige una carpeta para indexar (indexa todo adentro, incluidas subcarpetas)",
+        )
+        root.destroy()
+        return ruta or None
+    except Exception:
+        return None
 
 
 def _ask(question, active):
